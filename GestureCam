@@ -1,0 +1,77 @@
+gesture-based-camera
+____________________________
+
+import cv2
+import mediapipe as mp
+import os
+import math
+
+# Set the path to the desktop
+desktop_path = os.path.join(os.path.expanduser('~'), 'Desktop')
+
+# Initialize webcam
+webcam = cv2.VideoCapture(0)
+
+# Initialize MediaPipe Hands
+my_hands = mp.solutions.hands.Hands()
+drawing_utils = mp.solutions.drawing_utils
+
+# Flag to indicate whether a picture has already been captured
+picture_taken = False
+
+# Function to calculate the distance between two points
+def calculate_distance(x1, y1, x2, y2):
+    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
+
+while True:
+    # Read frame from webcam
+    success, image = webcam.read()
+    if not success:
+        print("Failed to capture image")
+        break
+
+    frame_height, frame_width, _ = image.shape
+    rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+    # Process the frame to detect hands
+    output = my_hands.process(rgb_image)
+    hands = output.multi_hand_landmarks
+
+    # If hands are detected
+    if hands:
+        for hand in hands:
+            drawing_utils.draw_landmarks(image, hand, mp.solutions.hands.HAND_CONNECTIONS)
+            landmarks = hand.landmark
+
+            # Get coordinates of thumb tip (id 4) and index finger tip (id 8)
+            thumb_tip_x = int(landmarks[4].x * frame_width)
+            thumb_tip_y = int(landmarks[4].y * frame_height)
+            index_tip_x = int(landmarks[8].x * frame_width)
+            index_tip_y = int(landmarks[8].y * frame_height)
+
+            # Draw circles at the thumb tip and index finger tip
+            cv2.circle(image, (thumb_tip_x, thumb_tip_y), 8, (0, 255, 255), 3)
+            cv2.circle(image, (index_tip_x, index_tip_y), 8, (0, 255, 255), 3)
+
+            # Calculate the distance between thumb tip and index finger tip
+            distance = calculate_distance(thumb_tip_x, thumb_tip_y, index_tip_x, index_tip_y)
+
+            # If the distance between thumb and index finger is small, assume OK gesture
+            if distance < 30 and not picture_taken:
+                cv2.imwrite(os.path.join(desktop_path, 'ok_sign_snap.jpg'), image)
+                print("OK sign gesture detected! Picture saved on desktop as 'ok_sign_snap.jpg'.")
+                picture_taken = True
+
+    # Display the frame
+    cv2.imshow("OK Gesture Picture Capture", image)
+
+    # Exit loop if 'ESC' key is pressed
+    key = cv2.waitKey(10)
+    if key == 27:
+        break
+    elif key == ord('c'):  # Press 'c' to reset the picture_taken flag
+        picture_taken = False
+
+# Release webcam and close all windows
+webcam.release()
+cv2.destroyAllWindows()
